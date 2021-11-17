@@ -2,7 +2,6 @@ package com.tokenRing.app;
 
 import java.nio.ByteBuffer;
 import java.nio.channels.DatagramChannel;
-import java.nio.charset.StandardCharsets;
 import java.net.InetSocketAddress;
 
 public class TesteNIOReceiver {
