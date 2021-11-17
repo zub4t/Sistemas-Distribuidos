@@ -10,23 +10,6 @@ public class M1 {
         final App app2 = new App();
         try {
             app1.init(8084, 8085, "localhost");
-            app2.init(8085, 8084, "localhost");
-            ByteBuffer bb = ByteBuffer.allocate(16);
-            bb.put("hello".getBytes());
-            new Thread() {
-                @Override
-                public synchronized void start() {
-                    try {
-                        app2.start();
-                    } catch (IOException e) {
-                        // TODO Auto-generated catch block
-                        e.printStackTrace();
-                    }
-                }
-            };
-
-            app1.sendToken(bb);
-
             app1.start();
         } catch (Exception e) {
             e.printStackTrace();

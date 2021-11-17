@@ -17,60 +17,52 @@ import java.util.Set;
 public class App {
     DatagramChannel channelInput;
     DatagramChannel channelOutput;
-    ByteBuffer incoming = ByteBuffer.allocate(16);
-    ByteBuffer outcoming = ByteBuffer.allocate(16);
+    ByteBuffer bb = ByteBuffer.allocate(128);
     Selector selector;
-    SelectionKey keyToRead;
-    SelectionKey keyToWrite;
     String ADDR = "";
     int PORT_OUT = 0;
 
     public void init(int PORT_IN, int out, String dst) throws IOException {
+        selector = Selector.open();
         ADDR = dst;
         PORT_OUT = out;
 
         channelInput = DatagramChannel.open();
         channelOutput = DatagramChannel.open();
-
         channelInput.socket().bind(new InetSocketAddress(PORT_IN));
 
         channelOutput.configureBlocking(false);
         channelInput.configureBlocking(false);
+        channelInput.register(selector, SelectionKey.OP_READ);
 
-        selector = Selector.open();
-
-        keyToRead = channelInput.register(selector, SelectionKey.OP_READ);
-        keyToWrite = channelOutput.register(selector, SelectionKey.OP_WRITE);
     }
 
     public void start() throws IOException {
-       
-        Set<SelectionKey> selectedKeys = selector.selectedKeys();
-
-        Iterator<SelectionKey> keyIterator = selectedKeys.iterator();
 
         while (true) {
             int readyChannels = selector.selectNow();
             // System.out.println("Canais ready " + readyChannels);
             if (readyChannels == 0)
                 continue;
-
-            while (keyIterator.hasNext()) {
-
-                SelectionKey key = keyIterator.next();
+            Set<SelectionKey> selectedKeys = selector.selectedKeys();
+            Iterator<SelectionKey> iter = selectedKeys.iterator();
+            while (iter.hasNext()) {
+                SelectionKey key = iter.next();
+                int interestOps = key.interestOps();
+                System.out.println(interestOps);
                 if (key.isReadable()) {
-
-                    channelInput.read(outcoming);
-
-                    byte[] tst = new byte[16];
-                    outcoming.get(tst);
-                    System.out.println("Recebi algo  na thread:" + Thread.currentThread().getName() + " e foi  "
-                            + (new String(tst, StandardCharsets.UTF_8)));
-                } else if (key.isWritable()) {
-
+                    DatagramChannel in = (DatagramChannel) key.channel();
+                    in.read(bb);
+                    bb.flip();
+                    while (bb.hasRemaining()) {
+                        System.out.print((char) bb.get());
+                    }
+                    System.out.println();
+                    bb.rewind();
+                    channelOutput.send(bb, new InetSocketAddress(ADDR, PORT_OUT));
+                    bb.clear();
                 }
-
-                keyIterator.remove();
+                iter.remove();
             }
         }
 
@@ -79,7 +71,7 @@ public class App {
     public void sendToken(ByteBuffer bb) throws IOException {
         System.out.println(" envinado Inicial");
         channelOutput.send(bb, new InetSocketAddress(ADDR, PORT_OUT));
-     
+
     }
 
 }
