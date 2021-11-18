@@ -1,8 +1,10 @@
 package com.tokenRing.app;
 
 import org.apache.commons.lang3.SerializationUtils;
-import java.io.IOException;
+import java.io.ByteArrayOutputStream;
+import java.io.ObjectOutputStream;
 import java.io.Serializable;
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.DatagramChannel;
@@ -70,7 +72,14 @@ public class App {
                     Thread.sleep(rand.nextInt(10000));
 
                     bb.clear();
-                    bb.put(SerializationUtils.serialize(token));
+                    // bb.put(SerializationUtils.serialize(token));
+
+                    ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                    ObjectOutputStream oos = new ObjectOutputStream(bos);
+                    oos.writeObject(token);
+                    oos.flush();
+                    bb.put(bos.toByteArray());
+
                     bb.flip();
 
                     DatagramChannel disposableDatagramChannel = DatagramChannel.open();
