@@ -1,10 +1,11 @@
 package com.tokenRing.app;
 
-import org.apache.commons.lang3.SerializationUtils;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.io.IOException;
+import java.io.ObjectInputStream;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.DatagramChannel;
@@ -47,7 +48,7 @@ public class App {
 
     }
 
-    public void start() throws IOException, InterruptedException {
+    public void start() throws IOException, InterruptedException, ClassNotFoundException {
         while (true) {
             int readyChannels = selector.selectNow();
             if (readyChannels == 0)
@@ -64,8 +65,10 @@ public class App {
                     /*
                      * while (bb.hasRemaining()) { System.out.print(bb.get()); }
                      */
-                    Token token = (Token) SerializationUtils.deserialize(bb.array());
-
+                    // Token token = (Token) SerializationUtils.deserialize(bb.array());
+                    ByteArrayInputStream bis = new ByteArrayInputStream(bb.array());
+                    ObjectInputStream stream = new ObjectInputStream(bis);
+                    Token token = (Token) stream.readObject();
                     System.out.println("TOKEN Is \t" + token);
                     token.setID(token.getID() + 1);
                     token.setMessage("The last thead to touch on this token was " + name);
@@ -103,7 +106,14 @@ public class App {
         DatagramChannel disposableDatagramChannel = DatagramChannel.open();
         ByteBuffer bb = ByteBuffer.allocate(MAX_PACKET_SIZE);
         bb.clear();
-        bb.put(SerializationUtils.serialize(new Token("initial message, starting in Thread " + name, 0, family)));
+        // bb.put(SerializationUtils.serialize(new Token("initial message, starting in
+        // Thread " + name, 0, family)));
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        ObjectOutputStream oos = new ObjectOutputStream(bos);
+        oos.writeObject(new Token("initial message, starting in Thread " + name, 0, family));
+        oos.flush();
+        bb.put(bos.toByteArray());
+
         bb.flip();
 
         disposableDatagramChannel.send(bb, new InetSocketAddress(ADDR, PORT_OUT));

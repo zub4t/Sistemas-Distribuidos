@@ -1,6 +1,5 @@
 package com.tokenRing.app;
 
-import java.io.IOException;
 import java.time.Duration;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
