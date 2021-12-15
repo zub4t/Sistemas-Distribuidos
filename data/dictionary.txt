@@ -1,0 +1,8 @@
+GET /bolls/?lang=en&query=--WORD--&max_results=--NUM-RESULTS-- HTTP/1.1
+Host: linguatools-english-collocations.p.rapidapi.com
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8
+Accept-Language: pt-PT,pt;q=0.8,en;q=0.5,en-US;q=0.3
+Accept-Encoding: gzip, deflate
+Connection: keep-alive
+Upgrade-Insecure-Requests: 1
+Cache-Control: max-age=0
