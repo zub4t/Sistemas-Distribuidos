@@ -17,8 +17,8 @@ public class Manager {
                     InetAddress ip = InetAddress.getByName("localhost");
                     Peer peer = new Peer(ip, 2222, "p");
                     peer.connectedTo.put("127.0.0.1", 2223);
-                    Thread.sleep(1000);
-                    //peer.sendMessage("Oie");
+              
+  
                 } catch (Exception e) {
                     e.printStackTrace();
                 }

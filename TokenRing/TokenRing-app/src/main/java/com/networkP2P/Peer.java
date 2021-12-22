@@ -1,6 +1,10 @@
 package com.networkP2P;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
@@ -9,59 +13,180 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
+import java.util.Scanner;
 import java.util.TreeMap;
-
 import org.json.JSONArray;
-import org.json.JSONObject;
 
 import java.lang.Math;
 
 public class Peer {
-    private Map<String, JSONArray> dictionary = new TreeMap<>();
     ServerSocketChannel serverSocketChannel;
     Map<String, Integer> connectedTo = new TreeMap<>();
     Server server;
     String name;
+    SocketChannel sc;
+    Selector selector;
 
-    public Peer(InetAddress addr, int port, String name) {
+    public static void main(String[] args) throws Exception {
+        int port = 2222;
+        if (args.length > 0)
+            port = Integer.parseInt(args[0]);
+        InetAddress ip = InetAddress.getByName("192.168.0.156");
+        Peer peer = new Peer(ip, port, "p");
+
+        Scanner scanner = new Scanner(System.in);
+        System.out.println("0 - register");
+        System.out.println("1 - push");
+        System.out.println("2 - pull");
+        System.out.println("3 - pushpull");
+        Message m;
+        ByteBuffer bb;
+        while (true) {
+            String c = scanner.nextLine();
+            String command[] = c.split(" ");
+
+            switch (command[0]) {
+                case "register":
+                    System.out.println("Type the IP followed by the port ");
+                    c = scanner.nextLine();
+                    command = c.split(" ");
+
+                    if (peer.register(command[0], Integer.parseInt(command[1]))) {
+                        System.out.println("Connection success!!!");
+                        peer.connectedTo.put(command[0], Integer.parseInt(command[1]));
+                    }
+                    break;
+                case "push":
+                    System.out.println("Type the IP followed by the port ");
+                    c = scanner.nextLine();
+                    command = c.split(" ");
+                    m = new Message(1, peer.server.dictionary);
+                    bb = Server.serialize(m);
+                    peer.sendMessage(bb, command[0], Integer.parseInt(command[1]));
+                    break;
+                case "pull":
+                    System.out.println("Type the IP followed by the port ");
+                    c = scanner.nextLine();
+                    command = c.split(" ");
+                    m = new Message(2, null);
+                    bb = Server.serialize(m);
+                    peer.sendMessage(bb, command[0], Integer.parseInt(command[1]));
+
+                    break;
+                case "pushpull":
+                    System.out.println("Type the IP followed by the port ");
+                    c = scanner.nextLine();
+                    command = c.split(" ");
+                    m = new Message(3, peer.server.dictionary);
+                    bb = Server.serialize(m);
+                    peer.sendMessage(bb, command[0], Integer.parseInt(command[1]));
+                    break;
+
+                case "listConnectedTo":
+                    System.out.println("List of connected peer");
+                    for (Map.Entry<String, Integer> entry : peer.connectedTo.entrySet()) {
+                        System.out.println("IP = " + entry.getKey() + ", Port = " +
+                                entry.getValue());
+                    }
+
+                case "listDictionary":
+                    System.out.println("List of connected peer");
+                    for (Map.Entry<String, String> entry : peer.server.dictionary.entrySet()) {
+                        System.out.println("word = " + entry.getKey() + ", meaning = " +
+                                entry.getValue());
+                    }
+                    break;
+
+            }
+
+        }
+
+    }
+
+    public Peer(final InetAddress addr, final int port, final String name) {
         this.name = name;
+
+        server = new Server(name);
+
+        new Thread() {
+            public void run() {
+                try {
+                    System.out.println(name + " está iniciando servidor");
+                    server.init(addr, port);
+                } catch (Exception e) {
+                }
+            }
+        }.start();
+
         try {
-            JSONArray words = new JSONArray(
-                    HttpsClient.doHttpsRequest("https://random-word-api.herokuapp.com/word?number=10"));
+            // HttpsClient.doHttpsRequest("https://random-word-api.herokuapp.com/word?number=10")
+            JSONArray words = new JSONArray("[car,ball,blue,bird,tiger,house,assignment,work,world,word,test]");
             for (int i = 0; i < 3; i++) {
                 String word = words.get(generateNumber(0, 9)).toString();
                 JSONArray meaning = new JSONArray(
                         HttpsClient.doHttpsRequest("https://api.dictionaryapi.dev/api/v2/entries/en/word"));
                 // System.out.println(meaning.toString());
-                dictionary.put(word, meaning);
+                this.server.dictionary.put(word, meaning.toString());
             }
-            System.out.println(name + " está iniciando servidor");
-            server = new Server(name);
-            final InetAddress addr_aux = addr;
-            final int port_aux = port;
-            new Thread() {
-                public void run() {
-                    try {
-                        server.init(addr_aux, port_aux);
-                    } catch (Exception e) {
-                    }
-                }
-            }.start();
+
         } catch (Exception e) {
 
             e.printStackTrace();
         }
     }
 
-    public void sendMessage(String msg) throws Exception {
-        for (Map.Entry<String, Integer> entry : connectedTo.entrySet()) {
-            System.out.println("Key = " + entry.getKey() + ", Value = " + entry.getValue());
+    public boolean register(String ip, int port) {
+        try {
+            sc = SocketChannel.open();
+            sc.connect(new InetSocketAddress(ip, port));
+            return sc.isConnected();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return false;
 
-            server.sendMessage(msg, entry.getKey(), entry.getValue());
+    }
+
+    public void sendMessage(ByteBuffer bb, String ip, int port) throws Exception {
+        selector = Selector.open();
+        sc = SocketChannel.open();
+
+        sc.connect(new InetSocketAddress(ip, port));
+        while (bb.hasRemaining()) {
+            sc.write(bb);
+        }
+        sc.configureBlocking(false);
+        sc.register(selector, SelectionKey.OP_READ, ByteBuffer.allocate(100024));
+        selector.select();
+        Iterator<SelectionKey> keys = selector.selectedKeys().iterator();
+        while (keys.hasNext()) {
+            System.out.println("Waiting response");
+            SelectionKey key = keys.next();
+            keys.remove();
+            if (key.isReadable()) {
+                SocketChannel channel = (SocketChannel) key.channel();
+                ByteBuffer buffer = (ByteBuffer) key.attachment();
+                channel.read(buffer);
+                Message msg = Server.deserialize(buffer);
+
+                switch (msg.getType()) {
+
+                    case 2:
+                    case 3:
+                        server.dictionary.putAll(msg.dictionaryContentReciver);
+                        System.out.println("Me: Receiving dictionary update");
+                        break;
+
+                }
+                System.out.println("Friend: " + msg.comment);
+                sc.close();
+                return;
+
+            }
+
         }
 
     }
@@ -75,8 +200,8 @@ public class Peer {
 class Server {
     Selector selector;
     ServerSocketChannel serverChannel;
-    SocketChannel sc;
     String name;
+    public Map<String, String> dictionary = new HashMap<>();
 
     Server(String name) {
         this.name = name;
@@ -85,34 +210,16 @@ class Server {
 
     public void init(InetAddress addr, int port) throws IOException {
         selector = Selector.open();
-/*
-        sc = SocketChannel.open();
-        sc.configureBlocking(false);
-        sc.register(selector, SelectionKey.OP_READ);
-*/
+
         serverChannel = ServerSocketChannel.open();
         ServerSocket serverSocket = serverChannel.socket();
         serverSocket.bind(new InetSocketAddress(addr, port));
+        System.out.println("Escutando em " + addr.getHostAddress() + ":" + port);
+
         serverChannel.configureBlocking(false);
         serverChannel.register(selector, SelectionKey.OP_ACCEPT);
 
         run();
-    }
-
-    public void sendMessage(String msg, String dst, int port) throws Exception {
-
-        sc.connect(new InetSocketAddress(dst, port));
-        System.out.println(sc.isConnected());
-        ByteBuffer buf = ByteBuffer.allocate(48);
-        buf.clear();
-        msg = name + " -> " + msg;
-        buf.put(msg.getBytes());
-        buf.flip();
-
-        while (buf.hasRemaining()) {
-            sc.write(buf);
-        }
-
     }
 
     public void run() throws IOException {
@@ -121,37 +228,84 @@ class Server {
             while (true) {
                 selector.select();
                 Iterator<SelectionKey> keys = selector.selectedKeys().iterator();
-
                 while (keys.hasNext()) {
+
                     SelectionKey key = keys.next();
                     keys.remove();
                     if (key.isAcceptable()) {
+                        System.out.println("Accepting connection");
                         ServerSocketChannel server = (ServerSocketChannel) key.channel();
                         SocketChannel channel = server.accept();
                         channel.configureBlocking(false);
-                        channel.register(selector, SelectionKey.OP_READ, ByteBuffer.allocate(1024));
+                        channel.register(selector, SelectionKey.OP_READ, ByteBuffer.allocate(100024));
                     } else if (key.isReadable()) {
-                        System.out.println("HOST " + name + " isReadable for ");
+                        System.out.println("Receving message");
                         SocketChannel channel = (SocketChannel) key.channel();
                         ByteBuffer buffer = (ByteBuffer) key.attachment();
                         channel.read(buffer);
-                        String mgs = new String(buffer.array(), "ASCII");
-                        System.out.println(mgs);
+                        Message msg = deserialize(buffer);
+
+                        switch (msg.getType()) {
+                            case 1:
+                            case 3:
+                                dictionary.putAll(msg.dictionaryContentSender);
+                                System.out.println("Receiving dictionary update");
+                                break;
+                            case 2:
+                                System.out.println("Preparing to seding my dictionary");
+
+                                break;
+
+                            default:
+                                break;
+                        }
+
                         key.interestOps(SelectionKey.OP_WRITE);
 
                     } else if (key.isWritable()) {
-                        System.out.println("HOST " + name + " isWritable for ");
                         SocketChannel channel = (SocketChannel) key.channel();
                         ByteBuffer buffer = (ByteBuffer) key.attachment();
-                        buffer.flip();
+                        Message msg = deserialize(buffer);
 
-                        channel.write(buffer);
-                        if (buffer.hasRemaining()) {
-                            buffer.compact();
-                        } else {
-                            buffer.clear();
+                        switch (msg.getType()) {
+                            case 1:
+                                System.out.println("Sending updated dictionary confirmation message");
+                                if (msg.dictionaryContentReciver != null)
+                                    msg.dictionaryContentReciver.clear();
+                                if (msg.dictionaryContentSender != null)
+                                    msg.dictionaryContentSender.clear();
+                                msg.comment = "Receive your dictionary message ty ;D";
+
+                                buffer = serialize(msg);
+                                channel.write(buffer);
+                                if (buffer.hasRemaining()) {
+                                    buffer.compact();
+                                } else {
+                                    buffer.clear();
+                                }
+                                break;
+                            case 2:
+                            case 3:
+                                System.out.println("Sending my dictionary ");
+
+                                msg.dictionaryContentReciver = this.dictionary;
+                                msg.comment = "Sending my dictionary :P"
+                                        + (msg.getType() == 3 ? " and confirming the update of my dictionary " : "");
+                                buffer = serialize(msg);
+                                channel.write(buffer);
+                                if (buffer.hasRemaining()) {
+                                    buffer.compact();
+                                } else {
+                                    buffer.clear();
+                                }
+                                break;
+
+                            default:
+                                break;
                         }
-                        key.interestOps(SelectionKey.OP_READ);
+
+                        channel.close();
+                        // key.interestOps(SelectionKey.OP_READ);
                     }
 
                 }
@@ -161,6 +315,35 @@ class Server {
         } catch (Exception e) {
             e.printStackTrace();
         }
+
+    }
+
+    public static Message deserialize(ByteBuffer buffer) {
+        try {
+            ByteArrayInputStream bis = new ByteArrayInputStream(buffer.array());
+            ObjectInputStream stream = new ObjectInputStream(bis);
+            Message msg = (Message) stream.readObject();
+            return msg;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+
+    }
+
+    public static ByteBuffer serialize(Message msg) {
+        try {
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            ObjectOutputStream oos = new ObjectOutputStream(bos);
+            oos.writeObject(msg);
+            oos.flush();
+            byte[] b = bos.toByteArray();
+            ByteBuffer bb = ByteBuffer.wrap(b);
+            return bb;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
 
     }
 }
