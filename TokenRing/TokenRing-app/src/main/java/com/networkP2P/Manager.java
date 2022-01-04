@@ -8,8 +8,6 @@ import org.json.JSONObject;
 public class Manager {
     public static void main(String[] args) throws Exception {
 
-        // System.out.println("Host Name: " + ip.getHostName());
-        // System.out.println("IP Address: " + ip.getHostAddress());
 
         Thread a = new Thread() {
             public void run() {

@@ -34,7 +34,8 @@ public class Peer {
         int port = 2222;
         if (args.length > 0)
             port = Integer.parseInt(args[0]);
-        InetAddress ip = InetAddress.getByName("192.168.0.156");
+        InetAddress ip = InetAddress.getByName("localhost");
+        System.out.println("Listening in " + ip.getHostAddress() + ":" + port);
         Peer peer = new Peer(ip, port, "p");
 
         Scanner scanner = new Scanner(System.in);
@@ -42,6 +43,9 @@ public class Peer {
         System.out.println("1 - push");
         System.out.println("2 - pull");
         System.out.println("3 - pushpull");
+        System.out.println("4 - listConnectedTo");
+        System.out.println("5 - listDictionary");
+
         Message m;
         ByteBuffer bb;
         while (true) {
@@ -122,15 +126,26 @@ public class Peer {
         }.start();
 
         try {
-            // HttpsClient.doHttpsRequest("https://random-word-api.herokuapp.com/word?number=10")
-            JSONArray words = new JSONArray("[car,ball,blue,bird,tiger,house,assignment,work,world,word,test]");
-            for (int i = 0; i < 3; i++) {
-                String word = words.get(generateNumber(0, 9)).toString();
-                JSONArray meaning = new JSONArray(
-                        HttpsClient.doHttpsRequest("https://api.dictionaryapi.dev/api/v2/entries/en/word"));
-                // System.out.println(meaning.toString());
-                this.server.dictionary.put(word, meaning.toString());
+
+            JSONArray words = new JSONArray(
+                    HttpsClient.doHttpsRequest("https://random-word-api.herokuapp.com/word?number=10"));
+
+            for (int i = 0; i < words.length(); i++) {
+                String word = words.get(i).toString();
+
+                this.server.dictionary.put(word, "....");
             }
+            /*
+             * for (int i = 0; i < 3; i++) {
+             * String word = words.get(generateNumber(0, 9)).toString();
+             * 
+             * JSONArray meaning = new JSONArray(
+             * HttpsClient.doHttpsRequest(
+             * "https://api.dictionaryapi.dev/api/v2/entries/en/"+ word));
+             * // System.out.println(meaning.toString());
+             * 
+             * }
+             */
 
         } catch (Exception e) {
 
@@ -201,7 +216,7 @@ class Server {
     Selector selector;
     ServerSocketChannel serverChannel;
     String name;
-    public Map<String, String> dictionary = new HashMap<>();
+    public Map<String, String> dictionary = new TreeMap<>();
 
     Server(String name) {
         this.name = name;

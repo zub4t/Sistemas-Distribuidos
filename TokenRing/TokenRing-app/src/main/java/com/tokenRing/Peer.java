@@ -14,24 +14,77 @@ import java.nio.channels.Selector;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.Random;
+import java.util.Scanner;
 
 public class Peer {
     public final static int MAX_PACKET_SIZE = 200;// 65507;
     DatagramChannel channeLeft;
     DatagramChannel channeRight;
     Selector selector;
-    String ADDR = "";
+    String ADDR_LEFT = "";
+    String ADDR_RIGHT = "";
     int PORT_OUT_LEFT;
     int PORT_OUT_RIGHT;
     SelectionKey left, right;
     String name;
     Random rand = new Random();
+    boolean hasTheToken;
 
-    public void init(int PORT_IN_LEFT, int PORT_IN_RIGHT, int PORT_OUT_LEFT, int PORT_OUT_RIGHT, String dst,
-            String name) throws IOException {
+    public static void main(String[] args) {
+        final Peer app;
+        try {
+
+            int PORT_IN_LEFT = Integer.parseInt(args[0]);
+            int PORT_IN_RIGHT = Integer.parseInt(args[1]);
+
+            int PORT_OUT_LEFT = Integer.parseInt(args[2]);
+            int PORT_OUT_RIGHT = Integer.parseInt(args[3]);
+
+            String ADDR_LEFT = (args[4]);
+            String ADDR_RIGHT = (args[5]);
+            String nme = (args[6]);
+            app = new Peer(PORT_IN_LEFT, PORT_IN_RIGHT, PORT_OUT_LEFT, PORT_OUT_RIGHT, ADDR_LEFT, ADDR_RIGHT, nme);
+            System.out.println("this peer has te token ?");
+            Scanner scanner = new Scanner(System.in);
+            app.hasTheToken = scanner.nextInt() == 1 ? true : false;
+            System.out.println(app.hasTheToken);
+            Thread thread = new Thread() {
+                @Override
+                public void run() {
+                    try {
+                        app.start();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            };
+            thread.start();
+        
+            if (app.hasTheToken) {
+                System.out.println("The ring will running to the left or to the right ?");
+                System.out.println("Type 1 for left");
+                if (scanner.nextInt() == 1) {
+                    app.ignite(PORT_OUT_LEFT, ADDR_LEFT);
+                } else {
+                    app.ignite(PORT_OUT_RIGHT, ADDR_RIGHT);
+
+                }
+
+            }
+            thread.join();
+        } catch (Exception e) {
+
+            e.printStackTrace();
+        }
+
+    }
+
+    public Peer(int PORT_IN_LEFT, int PORT_IN_RIGHT, int PORT_OUT_LEFT, int PORT_OUT_RIGHT, String ADDR_LEFT,
+            String ADDR_RIGHT, String name) throws IOException {
 
         this.selector = Selector.open();
-        this.ADDR = dst;
+        this.ADDR_LEFT = ADDR_LEFT;
+        this.ADDR_RIGHT = ADDR_RIGHT;
         this.PORT_OUT_LEFT = PORT_OUT_LEFT;
         this.PORT_OUT_RIGHT = PORT_OUT_RIGHT;
         this.name = name;
@@ -49,6 +102,7 @@ public class Peer {
     }
 
     public void start() throws IOException, InterruptedException, ClassNotFoundException {
+        Scanner scanner = new Scanner(System.in);
         while (true) {
             int readyChannels = selector.selectNow();
             if (readyChannels == 0)
@@ -71,29 +125,36 @@ public class Peer {
                     Token token = (Token) stream.readObject();
                     System.out.println("TOKEN Is \t" + token);
                     token.setID(token.getID() + 1);
-                    token.setMessage("The last thead to touch on this token was " + name);
-                    Thread.sleep(rand.nextInt(10000));
+                    token.setMessage("The last peer to touch on this token was " + name);
+                    while (true) {
+                        String command = scanner.next();
+                        if (command.equals("unlock")) {
 
-                    bb.clear();
-                    // bb.put(SerializationUtils.serialize(token));
+                            bb.clear();
+                            // bb.put(SerializationUtils.serialize(token));
+                            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                            ObjectOutputStream oos = new ObjectOutputStream(bos);
+                            oos.writeObject(token);
+                            oos.flush();
+                            bb.put(bos.toByteArray());
 
-                    ByteArrayOutputStream bos = new ByteArrayOutputStream();
-                    ObjectOutputStream oos = new ObjectOutputStream(bos);
-                    oos.writeObject(token);
-                    oos.flush();
-                    bb.put(bos.toByteArray());
+                            bb.flip();
 
-                    bb.flip();
+                            DatagramChannel disposableDatagramChannel = DatagramChannel.open();
+                            if (key == left) {
+                                disposableDatagramChannel.send(bb, new InetSocketAddress(ADDR_LEFT, PORT_OUT_LEFT));
 
-                    DatagramChannel disposableDatagramChannel = DatagramChannel.open();
-                    if (key == left) {
-                        disposableDatagramChannel.send(bb, new InetSocketAddress(ADDR, PORT_OUT_LEFT));
+                            } else {
+                                disposableDatagramChannel.send(bb, new InetSocketAddress(ADDR_RIGHT, PORT_OUT_RIGHT));
 
-                    } else {
-                        disposableDatagramChannel.send(bb, new InetSocketAddress(ADDR, PORT_OUT_RIGHT));
-
+                            }
+                            disposableDatagramChannel.close();
+                            break;
+                        } else {
+                            System.out.println("keeping the token");
+                        }
                     }
-                    disposableDatagramChannel.close();
+
                 }
                 iter.remove();
             }
@@ -101,7 +162,7 @@ public class Peer {
 
     }
 
-    public void ignite(int PORT_OUT, int family) throws IOException {
+    public void ignite(int PORT_OUT, String ADDR) throws IOException {
         System.out.println("iniciando ignite at port " + PORT_OUT);
         DatagramChannel disposableDatagramChannel = DatagramChannel.open();
         ByteBuffer bb = ByteBuffer.allocate(MAX_PACKET_SIZE);
@@ -110,7 +171,7 @@ public class Peer {
         // Thread " + name, 0, family)));
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         ObjectOutputStream oos = new ObjectOutputStream(bos);
-        oos.writeObject(new Token("initial message, starting in Thread " + name, 0, family));
+        oos.writeObject(new Token("initial message, starting in Thread " + name, 0));
         oos.flush();
         bb.put(bos.toByteArray());
 
@@ -128,10 +189,9 @@ class Token implements Serializable {
     private long ID;
     private int family;
 
-    public Token(String message, long ID, int family) {
+    public Token(String message, long ID) {
         this.message = message;
         this.ID = ID;
-        this.family = family;
     }
 
     public String getMessage() {
