@@ -31,7 +31,7 @@ public class Peer {
         int port = 2222;
         if (args.length > 0)
             port = Integer.parseInt(args[0]);
-        InetAddress ip = InetAddress.getByName("192.168.1.80");
+        InetAddress ip = InetAddress.getByName("localhost");
         final Peer peer = new Peer(ip, port, "p");
 
         Scanner scanner = new Scanner(System.in);
