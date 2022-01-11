@@ -1,0 +1,5 @@
+java -jar .\TokenRing-app-1.0-SNAPSHOT-jar-with-dependencies.jar 7071 8081 7072 8082 localhost localhost P1
+java -jar .\TokenRing-app-1.0-SNAPSHOT-jar-with-dependencies.jar 7072 8082 7073 8083 localhost localhost P2
+java -jar .\TokenRing-app-1.0-SNAPSHOT-jar-with-dependencies.jar 7073 8083 7074 8084 localhost localhost P3
+java -jar .\TokenRing-app-1.0-SNAPSHOT-jar-with-dependencies.jar 7074 8084 7075 8085 localhost localhost P4
+java -jar .\TokenRing-app-1.0-SNAPSHOT-jar-with-dependencies.jar 7075 8085 7071 8081 localhost localhost P5

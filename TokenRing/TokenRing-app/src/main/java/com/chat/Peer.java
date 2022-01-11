@@ -28,11 +28,11 @@ public class Peer {
     String name;
 
     public static void main(String[] args) throws Exception {
-        int port = 2222;
-        if (args.length > 0)
-            port = Integer.parseInt(args[0]);
-        InetAddress ip = InetAddress.getByName("localhost");
-        final Peer peer = new Peer(ip, port, "p");
+        String addr = args[0];
+        int port = Integer.parseInt(args[1]);
+        String nme = args[2];
+        InetAddress ip = InetAddress.getByName(addr);
+        final Peer peer = new Peer(ip, port, nme);
 
         Scanner scanner = new Scanner(System.in);
         System.out.println("Type the host followed by the port, when done type '.done' ");
@@ -61,7 +61,8 @@ public class Peer {
 
                         }
                         if (!peer.server.messages.get(0).isBleat) {
-                            System.out.println(peer.server.messages.get(0).getLamportClock() + ": "
+                            System.out.println(peer.server.messages.get(0).getOwner() + " "
+                                    + peer.server.messages.get(0).getLamportClock() + ": "
                                     + peer.server.messages.get(0).getComment());
 
                         }
@@ -80,9 +81,11 @@ public class Peer {
 
         while (true) {
             Message m;
+
             ByteBuffer bb;
             String c = scanner.nextLine();
             m = new Message(peer.server.myLamportClock, c, false);
+            m.setOwner(peer.name);
             peer.server.messages.add(m);
             // Collections.sort(peer.server.messages);
             bb = Server.serialize(m);

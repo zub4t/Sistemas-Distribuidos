@@ -5,15 +5,16 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
+import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Scanner;
@@ -24,19 +25,20 @@ import java.lang.Math;
 
 public class Peer {
     ServerSocketChannel serverSocketChannel;
-    Map<String, Integer> connectedTo = new TreeMap<>();
+    Map<String, Tuple> connectedTo = new TreeMap<>();
     Server server;
     String name;
     SocketChannel sc;
     Selector selector;
+    boolean isReading;
+    boolean isUpdating;
 
     public static void main(String[] args) throws Exception {
-        int port = 2222;
-        if (args.length > 0)
-            port = Integer.parseInt(args[0]);
-        InetAddress ip = InetAddress.getByName("localhost");
+
+        InetAddress ip = InetAddress.getByName((args[0]));
+        int port = Integer.parseInt(args[1]);
         System.out.println("Listening in " + ip.getHostAddress() + ":" + port);
-        Peer peer = new Peer(ip, port, "p");
+        Peer peer = new Peer(ip, port);
 
         Scanner scanner = new Scanner(System.in);
         System.out.println("0 - register");
@@ -51,112 +53,162 @@ public class Peer {
         while (true) {
             String c = scanner.nextLine();
             String command[] = c.split(" ");
+            try {
 
-            switch (command[0]) {
-                case "register":
-                    System.out.println("Type the IP followed by the port ");
-                    c = scanner.nextLine();
-                    command = c.split(" ");
+                switch (command[0]) {
+                    case "register":
+                        System.out.println("Type the IP followed by the port ");
+                        c = scanner.nextLine();
+                        command = c.split(" ");
+                        m = new Message(0, null);
+                        m.setComment(command[3] + "--" + args[0] + "--" + port);
+                        bb = Server.serialize(m);
+                        try {
+                            peer.sendMessage(bb, command[1], Integer.parseInt(command[2]));
+                            System.out.println("Connection success!!!");
+                            peer.connectedTo.put(command[0], new Tuple(command[1], Integer.parseInt(command[2])));
 
-                    if (peer.register(command[0], Integer.parseInt(command[1]))) {
-                        System.out.println("Connection success!!!");
-                        peer.connectedTo.put(command[0], Integer.parseInt(command[1]));
-                    }
-                    break;
-                case "push":
-                    System.out.println("Type the IP followed by the port ");
-                    c = scanner.nextLine();
-                    command = c.split(" ");
-                    m = new Message(1, peer.server.dictionary);
-                    bb = Server.serialize(m);
-                    peer.sendMessage(bb, command[0], Integer.parseInt(command[1]));
-                    break;
-                case "pull":
-                    System.out.println("Type the IP followed by the port ");
-                    c = scanner.nextLine();
-                    command = c.split(" ");
-                    m = new Message(2, null);
-                    bb = Server.serialize(m);
-                    peer.sendMessage(bb, command[0], Integer.parseInt(command[1]));
+                        } catch (Exception e) {
+                            System.out.println("Connection Fail!!!");
+                            e.printStackTrace();
 
-                    break;
-                case "pushpull":
-                    System.out.println("Type the IP followed by the port ");
-                    c = scanner.nextLine();
-                    command = c.split(" ");
-                    m = new Message(3, peer.server.dictionary);
-                    bb = Server.serialize(m);
-                    peer.sendMessage(bb, command[0], Integer.parseInt(command[1]));
-                    break;
+                        }
 
-                case "listConnectedTo":
-                    System.out.println("List of connected peer");
-                    for (Map.Entry<String, Integer> entry : peer.connectedTo.entrySet()) {
-                        System.out.println("IP = " + entry.getKey() + ", Port = " +
-                                entry.getValue());
-                    }
+                        break;
+                    case "push":
+                        System.out.println("Type the IP followed by the port ");
+                        c = scanner.nextLine();
+                        command = c.split(" ");
+                        m = new Message(1, peer.server.dictionary);
+                        bb = Server.serialize(m);
+                        if (peer.connectedTo.get(command[0]) != null) {
+                            peer.sendMessage(bb, peer.connectedTo.get(command[0]).ip,
+                                    peer.connectedTo.get(command[0]).port);
 
-                case "listDictionary":
-                    System.out.println("List of connected peer");
-                    for (Map.Entry<String, String> entry : peer.server.dictionary.entrySet()) {
-                        System.out.println("word = " + entry.getKey() + ", meaning = " +
-                                entry.getValue());
-                    }
-                    break;
+                        } else {
+                            peer.sendMessage(bb, command[0], Integer.parseInt(command[1]));
 
+                        }
+                        break;
+                    case "pull":
+                        System.out.println("Type the IP followed by the port ");
+                        c = scanner.nextLine();
+                        command = c.split(" ");
+                        m = new Message(2, null);
+                        bb = Server.serialize(m);
+
+                        if (peer.connectedTo.get(command[0]) != null) {
+                            peer.sendMessage(bb, peer.connectedTo.get(command[0]).ip,
+                                    peer.connectedTo.get(command[0]).port);
+
+                        } else {
+                            peer.sendMessage(bb, command[0], Integer.parseInt(command[1]));
+
+                        }
+                        break;
+                    case "pushpull":
+                        System.out.println("Type the IP followed by the port ");
+                        c = scanner.nextLine();
+                        command = c.split(" ");
+                        m = new Message(3, peer.server.dictionary);
+                        bb = Server.serialize(m);
+                        if (peer.connectedTo.get(command[0]) != null) {
+                            peer.sendMessage(bb, peer.connectedTo.get(command[0]).ip,
+                                    peer.connectedTo.get(command[0]).port);
+
+                        } else {
+                            peer.sendMessage(bb, command[0], Integer.parseInt(command[1]));
+
+                        }
+                        break;
+
+                    case "listConnectedTo":
+                        System.out.println("List of connected peer");
+                        for (Map.Entry<String, Tuple> entry : peer.connectedTo.entrySet()) {
+                            System.out.println("Alias = " + entry.getKey() + ", IP = " +
+                                    entry.getValue().ip + " PORT=" + entry.getValue().port);
+                        }
+                        break;
+                    case "listDictionary":
+                        while (true) {
+                            if (!peer.isUpdating) {
+                                peer.isReading = true;
+                                System.out.println("List of connected peer");
+                                for (Map.Entry<String, String> entry : peer.server.dictionary.entrySet()) {
+                                    System.out.println("word = " + entry.getKey() + ", meaning = " +
+                                            entry.getValue());
+                                }
+                                peer.isReading = false;
+                                break;
+                            }
+
+                        }
+
+                        break;
+
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+                System.out.println("0 - register");
+                System.out.println("1 - push");
+                System.out.println("2 - pull");
+                System.out.println("3 - pushpull");
+                System.out.println("4 - listConnectedTo");
+                System.out.println("5 - listDictionary");
             }
-
         }
 
     }
 
-    public Peer(final InetAddress addr, final int port, final String name) {
-        this.name = name;
+    public Peer(final InetAddress addr, final int port) {
 
-        server = new Server(name);
+        server = new Server(this);
 
         new Thread() {
             public void run() {
                 try {
-                    System.out.println(name + " está iniciando servidor");
+                    System.out.println(" Está iniciando servidor");
                     server.init(addr, port);
                 } catch (Exception e) {
                 }
             }
         }.start();
 
-        try {
+        new Thread() {
+            public void run() {
+                try {
+                    while (true) {
+                        if (!isReading) {
+                            isUpdating = true;
+                            JSONArray words = new JSONArray(
+                                    HttpsClient.doHttpsRequest("https://random-word-api.herokuapp.com/word?number=1"));
 
-            JSONArray words = new JSONArray(
-                    HttpsClient.doHttpsRequest("https://random-word-api.herokuapp.com/word?number=10"));
+                            for (int i = 0; i < words.length(); i++) {
+                                String word = words.get(i).toString();
 
-            for (int i = 0; i < words.length(); i++) {
-                String word = words.get(i).toString();
+                                server.dictionary.put(word, "....");
+                            }
+                            isUpdating = false;
+                            Thread.sleep(Peer.generateNumber(10, 20) * 1000);
 
-                this.server.dictionary.put(word, "....");
+                        }
+
+                    }
+
+                } catch (Exception e) {
+
+                    e.printStackTrace();
+                }
             }
-            /*
-             * for (int i = 0; i < 3; i++) {
-             * String word = words.get(generateNumber(0, 9)).toString();
-             * 
-             * JSONArray meaning = new JSONArray(
-             * HttpsClient.doHttpsRequest(
-             * "https://api.dictionaryapi.dev/api/v2/entries/en/"+ word));
-             * // System.out.println(meaning.toString());
-             * 
-             * }
-             */
+        }.start();
 
-        } catch (Exception e) {
-
-            e.printStackTrace();
-        }
     }
 
     public boolean register(String ip, int port) {
         try {
             sc = SocketChannel.open();
             sc.connect(new InetSocketAddress(ip, port));
+
             return sc.isConnected();
         } catch (Exception e) {
             e.printStackTrace();
@@ -215,11 +267,11 @@ public class Peer {
 class Server {
     Selector selector;
     ServerSocketChannel serverChannel;
-    String name;
     public Map<String, String> dictionary = new TreeMap<>();
+    Peer peer;
 
-    Server(String name) {
-        this.name = name;
+    Server(Peer peer) {
+        this.peer = peer;
 
     }
 
@@ -261,13 +313,24 @@ class Server {
                         Message msg = deserialize(buffer);
 
                         switch (msg.getType()) {
+                            case 0:
+
+                                String addr = msg.getComment().split("--")[1];
+                                int port = Integer.parseInt(msg.getComment().split("--")[2]);
+
+                                peer.connectedTo.put(msg.getComment().split(
+                                        "--")[0],
+                                        new Tuple(addr, port));
+                                System.out.println(
+                                        "Registering " + msg.getComment().split("--")[0] + " to " + addr + ":" + port);
+                                break;
                             case 1:
                             case 3:
                                 dictionary.putAll(msg.dictionaryContentSender);
                                 System.out.println("Receiving dictionary update");
                                 break;
                             case 2:
-                                System.out.println("Preparing to seding my dictionary");
+                                System.out.println("Preparing to send my dictionary");
 
                                 break;
 
@@ -283,13 +346,29 @@ class Server {
                         Message msg = deserialize(buffer);
 
                         switch (msg.getType()) {
+                            case 0:
+                                System.out.println("Sending registered confirmation message");
+                                if (msg.dictionaryContentReciver != null)
+                                    msg.dictionaryContentReciver.clear();
+                                if (msg.dictionaryContentSender != null)
+                                    msg.dictionaryContentSender.clear();
+                                msg.comment = "Registered your Alias Friend ";
+
+                                buffer = serialize(msg);
+                                channel.write(buffer);
+                                if (buffer.hasRemaining()) {
+                                    buffer.compact();
+                                } else {
+                                    buffer.clear();
+                                }
+                                break;
                             case 1:
                                 System.out.println("Sending updated dictionary confirmation message");
                                 if (msg.dictionaryContentReciver != null)
                                     msg.dictionaryContentReciver.clear();
                                 if (msg.dictionaryContentSender != null)
                                     msg.dictionaryContentSender.clear();
-                                msg.comment = "Receive your dictionary message ty ;D";
+                                msg.comment = "Received your dictionary message ty ;D";
 
                                 buffer = serialize(msg);
                                 channel.write(buffer);
@@ -361,4 +440,14 @@ class Server {
         return null;
 
     }
+}
+
+class Tuple {
+    public Tuple(String ip, int port) {
+        this.ip = ip;
+        this.port = port;
+    }
+
+    String ip;
+    int port;
 }

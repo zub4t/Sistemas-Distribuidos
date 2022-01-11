@@ -57,7 +57,7 @@
           <configuration>
             <archive>
               <manifest>
-                <mainClass>com.tokenRing.Peer</mainClass>
+                <mainClass>com.chat.Peer</mainClass>
               </manifest>
             </archive>
             <descriptorRefs>

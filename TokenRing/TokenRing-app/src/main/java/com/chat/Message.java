@@ -4,8 +4,17 @@ import java.io.Serializable;
 
 public class Message implements Serializable, Comparable<Message> {
     private int lamportClock;
-    public String comment;
+    private String owner;
+    private String comment;
     public Boolean isBleat;
+
+    public String getOwner() {
+        return this.owner;
+    }
+
+    public void setOwner(String owner) {
+        this.owner = owner;
+    }
 
     public String getComment() {
         return this.comment;

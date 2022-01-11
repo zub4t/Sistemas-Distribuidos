@@ -3,14 +3,14 @@ com\chat\Peer$1.class
 com\tokenRing\Token.class
 com\chat\Peer$2.class
 com\networkP2P\Peer.class
+com\networkP2P\Peer$2.class
+com\networkP2P\Tuple.class
 com\chat\Message.class
 com\chat\Peer.class
-com\networkP2P\Manager$1.class
 com\networkP2P\Peer$1.class
 com\networkP2P\HttpsClient.class
 com\networkP2P\Message.class
-com\networkP2P\Manager$2.class
+com\tokenRing\Peer$2.class
 com\chat\Server.class
-com\networkP2P\Manager.class
 com\tokenRing\Peer$1.class
 com\networkP2P\Server.class

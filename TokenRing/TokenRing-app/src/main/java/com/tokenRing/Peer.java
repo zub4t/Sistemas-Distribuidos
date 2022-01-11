@@ -28,10 +28,11 @@ public class Peer {
     SelectionKey left, right;
     String name;
     Random rand = new Random();
-    boolean hasTheToken;
+    boolean hasToken;
+    boolean isLock;
 
     public static void main(String[] args) {
-        final Peer app;
+        final Peer peer;
         try {
 
             int PORT_IN_LEFT = Integer.parseInt(args[0]);
@@ -43,34 +44,55 @@ public class Peer {
             String ADDR_LEFT = (args[4]);
             String ADDR_RIGHT = (args[5]);
             String nme = (args[6]);
-            app = new Peer(PORT_IN_LEFT, PORT_IN_RIGHT, PORT_OUT_LEFT, PORT_OUT_RIGHT, ADDR_LEFT, ADDR_RIGHT, nme);
-            System.out.println("this peer has te token ?");
+            peer = new Peer(PORT_IN_LEFT, PORT_IN_RIGHT, PORT_OUT_LEFT, PORT_OUT_RIGHT, ADDR_LEFT, ADDR_RIGHT, nme);
+            System.out.println("this peer has the token ?");
             Scanner scanner = new Scanner(System.in);
-            app.hasTheToken = scanner.nextInt() == 1 ? true : false;
-            System.out.println(app.hasTheToken);
+            peer.hasToken = scanner.nextInt() == 1 ? true : false;
+            System.out.println(peer.hasToken);
             Thread thread = new Thread() {
                 @Override
                 public void run() {
                     try {
-                        app.start();
+                        peer.start();
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
                 }
             };
             thread.start();
-        
-            if (app.hasTheToken) {
+
+            if (peer.hasToken) {
                 System.out.println("The ring will running to the left or to the right ?");
                 System.out.println("Type 1 for left");
                 if (scanner.nextInt() == 1) {
-                    app.ignite(PORT_OUT_LEFT, ADDR_LEFT);
+                    peer.ignite(PORT_OUT_LEFT, ADDR_LEFT);
                 } else {
-                    app.ignite(PORT_OUT_RIGHT, ADDR_RIGHT);
+                    peer.ignite(PORT_OUT_RIGHT, ADDR_RIGHT);
 
                 }
 
             }
+            new Thread() {
+                @Override
+                public void run() {
+                    try {
+                        Scanner sc = new Scanner(System.in);
+                        while (true) {
+                            String cmd = sc.nextLine();
+                            if (cmd.equals("lock")) {
+                                peer.isLock = true;
+                            }
+                            if (cmd.equals("unlock")) {
+                                peer.isLock = false;
+                            }
+
+                        }
+
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            }.start();
             thread.join();
         } catch (Exception e) {
 
@@ -123,15 +145,17 @@ public class Peer {
                     ByteArrayInputStream bis = new ByteArrayInputStream(bb.array());
                     ObjectInputStream stream = new ObjectInputStream(bis);
                     Token token = (Token) stream.readObject();
-                    System.out.println("TOKEN Is \t" + token);
+                    System.out.println(token);
                     token.setID(token.getID() + 1);
                     token.setMessage("The last peer to touch on this token was " + name);
+
                     while (true) {
-                        String command = scanner.next();
-                        if (command.equals("unlock")) {
+                        Thread.sleep(100);
+                        if (!isLock) {
 
                             bb.clear();
                             // bb.put(SerializationUtils.serialize(token));
+
                             ByteArrayOutputStream bos = new ByteArrayOutputStream();
                             ObjectOutputStream oos = new ObjectOutputStream(bos);
                             oos.writeObject(token);
@@ -150,9 +174,8 @@ public class Peer {
                             }
                             disposableDatagramChannel.close();
                             break;
-                        } else {
-                            System.out.println("keeping the token");
                         }
+
                     }
 
                 }
